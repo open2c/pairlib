@@ -7,7 +7,7 @@ Library of functions for reading, writing and analysing Hi-C pairs.
 
 :copyright: (c) 2019 Massachusetts Institute of Technology
 :author: Mirny Lab
-:license: BSD
+:license: MIT
 
 """
 import logging

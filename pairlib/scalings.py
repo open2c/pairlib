@@ -160,7 +160,7 @@ def bins_pairs_by_distance(
          'strand1':pairs_df.strand1.values,
          'strand2':pairs_df.strand2.values,
          'dist_bin_idx': np.searchsorted(
-                dist_bins, pairs_df.eval('abs(pos1-pos2)'), side='right'),
+                dist_bins, np.abs(pairs_df.pos1-pairs_df.pos2), side='right'),
          'n_pairs':1
          },
         copy=False)
@@ -257,12 +257,32 @@ def _contact_areas_trans(
 
 
 def compute_scaling(
-    pairs_df, 
+    pairs, 
     regions=None,
     chromsizes=None,
     dist_range=(int(1e1), int(1e9)), 
     n_dist_bins=8*8,
     ):
+
+    if isinstance(pairs, pd.DataFrame):
+        pairs_df = pairs
+    elif isinstance(pairs, str):
+        import pairtools
+
+        header, pairs_body = pairtools._headerops.get_header(
+            pairtools._fileio.auto_open(pairs, 'r'))
+
+        cols = pairtools._headerops.extract_column_names(header)
+
+        pairs_df = pd.read_csv(
+            pairs_body,
+            header=None,
+            names=cols,
+            #nrows=1e6,
+            sep='\t'
+        )
+    else:
+        raise ValueError('pairs must be either a path to a pairs file or a pd.DataFrame')
 
     dist_bins = geomspace(dist_range[0],dist_range[1],n_dist_bins)
 
@@ -293,3 +313,23 @@ def compute_scaling(
     
         
     return sc,trans_counts
+
+
+def norm_scaling(bins, cfreqs, anchor=1.0, binwindow=(0,3)):
+    i = np.searchsorted(bins, anchor)
+    return cfreqs/(cfreqs[i+binwindow[0]:i+binwindow[1]]).mean()
+
+
+def unity_norm_scaling(bins, cfreqs, norm_range=(1e4, 1e9)):
+    bins_lens = np.diff(bins)
+    bin_mids = np.sqrt(bins[1:] * bins[:-1])
+
+    if norm_range is None:
+        norm_cfreqs = cfreqs / np.sum(1. * (bin_lens * cfreqs)[np.isfinite(cfreqs)])
+    else:
+        norm_cfreqs = cfreqs / np.sum(1. * (bin_lens * cfreqs)[
+            np.isfinite(cfreqs)
+            & (bin_mids > norm_range[0])
+            & (bin_mids < norm_range[1])])
+
+    return norm_cfreqs
