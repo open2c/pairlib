@@ -197,7 +197,7 @@ def bins_pairs_by_distance(
     pairs_for_scaling_counts['n_pairs'] = pairs_for_scaling_counts['n_pairs'].astype(np.int64)
     
     if ignore_trans:
-        pairs_no_scaling_df = None
+        pairs_no_scaling_counts = None
     else:    
         pairs_no_scaling_df = pairs_reduced_df.loc[~pairs_for_scaling_mask]
         
@@ -263,6 +263,7 @@ def compute_scaling(
     chromsizes=None,
     dist_range=(int(1e1), int(1e9)), 
     n_dist_bins=8*8,
+    chunksize=int(1e7),
     ignore_trans=False
     ):
 
