@@ -269,7 +269,7 @@ def compute_scaling(
     dist_bins = geomspace(dist_range[0],dist_range[1],n_dist_bins)
 
     if isinstance(pairs, pd.DataFrame):
-            pairs_df = pairs
+        pairs_df = pairs
             
     elif isinstance(pairs, str) or hasattr(pairs, 'buffer'):
         import pairtools
@@ -280,6 +280,8 @@ def compute_scaling(
         header, pairs_body = pairtools._headerops.get_header(pairs_stream)
 
         cols = pairtools._headerops.extract_column_names(header)
+        if chromsizes is None:
+            chromsizes = pairtools._headerops.extract_chromsizes(header)
 
         pairs_df = pd.read_csv(
             pairs_body,
@@ -301,7 +303,8 @@ def compute_scaling(
             regions=regions,
             chromsizes=chromsizes,
             ignore_trans=ignore_trans
-            )
+        )
+
         sc = (sc_chunk 
               if sc is None 
               else sc.add(sc_chunk, fill_value=0))
@@ -318,7 +321,7 @@ def compute_scaling(
         sc['min_dist'],
         sc['max_dist'],
         sc['end1'] - sc['start1']
-        )
+    )
         
     if not ignore_trans:
         trans_counts.reset_index(inplace=True)
