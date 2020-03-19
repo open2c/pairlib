@@ -95,7 +95,6 @@ def make_empty_scaling(regions, dist_bins, multiindex=True):
 
 
 def make_empty_cross_region_table(regions, drop_same_reg=True, split_by_strand=True, multiindex=True):
-    
     out = cartesian_df_product(regions, regions)
     if split_by_strand:    
         strands_table = pd.DataFrame({'strand1':['+','+','-','-'],'strand2':['+','-','+','-']})
@@ -120,6 +119,7 @@ def bins_pairs_by_distance(
     dist_bins,
     regions=None,
     chromsizes=None,
+    ignore_trans=False
     ):
    
     if regions is None:
@@ -196,19 +196,20 @@ def bins_pairs_by_distance(
     pairs_for_scaling_counts = make_empty_scaling(regions, dist_bins).assign(n_pairs=0).add(pairs_for_scaling_counts, fill_value=0)
     pairs_for_scaling_counts['n_pairs'] = pairs_for_scaling_counts['n_pairs'].astype(np.int64)
     
-    
-    
-    pairs_no_scaling_df = pairs_reduced_df.loc[~pairs_for_scaling_mask]
-    
-    pairs_no_scaling_counts = pairs_no_scaling_df.groupby(
-        by=['chrom1', 'start1', 'end1', 
-            'chrom2', 'start2', 'end2', 
-            'strand1', 'strand2', 
-           ]).agg({'n_pairs':'sum'})
-    
-    pairs_no_scaling_counts = make_empty_cross_region_table(regions).assign(n_pairs=0).add(pairs_no_scaling_counts, fill_value=0)
-    pairs_no_scaling_counts['n_pairs'] = pairs_no_scaling_counts['n_pairs'].astype(np.int64)
-    
+    if ignore_trans:
+        pairs_no_scaling_df = None
+    else:    
+        pairs_no_scaling_df = pairs_reduced_df.loc[~pairs_for_scaling_mask]
+        
+        pairs_no_scaling_counts = pairs_no_scaling_df.groupby(
+            by=['chrom1', 'start1', 'end1', 
+                'chrom2', 'start2', 'end2', 
+                'strand1', 'strand2', 
+            ]).agg({'n_pairs':'sum'})
+        
+        pairs_no_scaling_counts = make_empty_cross_region_table(regions).assign(n_pairs=0).add(pairs_no_scaling_counts, fill_value=0)
+        pairs_no_scaling_counts['n_pairs'] = pairs_no_scaling_counts['n_pairs'].astype(np.int64)
+        
     return pairs_for_scaling_counts, pairs_no_scaling_counts
 
 
@@ -262,15 +263,21 @@ def compute_scaling(
     chromsizes=None,
     dist_range=(int(1e1), int(1e9)), 
     n_dist_bins=8*8,
+    ignore_trans=False
     ):
 
+    dist_bins = geomspace(dist_range[0],dist_range[1],n_dist_bins)
+
     if isinstance(pairs, pd.DataFrame):
-        pairs_df = pairs
-    elif isinstance(pairs, str):
+            pairs_df = pairs
+            
+    elif isinstance(pairs, str) or hasattr(pairs, 'buffer'):
         import pairtools
 
-        header, pairs_body = pairtools._headerops.get_header(
-            pairtools._fileio.auto_open(pairs, 'r'))
+        pairs_stream = (pairs if hasattr(pairs, 'buffer') 
+                        else pairtools._fileio.auto_open(pairs, 'r'))
+        
+        header, pairs_body = pairtools._headerops.get_header(pairs_stream)
 
         cols = pairtools._headerops.extract_column_names(header)
 
@@ -279,40 +286,48 @@ def compute_scaling(
             header=None,
             names=cols,
             #nrows=1e6,
+            chunksize=chunksize,
             sep='\t'
         )
     else:
         raise ValueError('pairs must be either a path to a pairs file or a pd.DataFrame')
 
-    dist_bins = geomspace(dist_range[0],dist_range[1],n_dist_bins)
 
-    sc, trans_counts = bins_pairs_by_distance(
-        pairs_df, 
-        dist_bins,
-        regions=regions,
-        chromsizes=chromsizes
-        )
-    
-    sc.reset_index(inplace=True)
-    trans_counts.reset_index(inplace=True)
-    
+    sc, trans_counts = None, None
+    for pairs_chunk in ([pairs_df] if chunksize is None else pairs_df): 
+        sc_chunk, trans_counts_chunk = bins_pairs_by_distance(
+            pairs_chunk, 
+            dist_bins,
+            regions=regions,
+            chromsizes=chromsizes,
+            ignore_trans=ignore_trans
+            )
+        sc = (sc_chunk 
+              if sc is None 
+              else sc.add(sc_chunk, fill_value=0))
+        trans_counts = (trans_counts_chunk 
+                        if trans_counts is None 
+                        else trans_counts.add(trans_counts_chunk, fill_value=0))
+
 #         if not (isinstance(regions, pd.DataFrame) and
 #                  (set(regions.columns) == set(['chrom', 'start','end']))):
 #             raise ValueError('regions must be provided as a dict or chrom-indexed Series of chromsizes or as a bedframe.')
-            
+
+    sc.reset_index(inplace=True)            
     sc['n_bp2'] = contact_areas_same_reg(
         sc['min_dist'],
         sc['max_dist'],
         sc['end1'] - sc['start1']
         )
         
-    trans_counts['np_bp2'] = (
-        (trans_counts['end1'] - trans_counts['start1'])
-        * (trans_counts['end2'] - trans_counts['start2'])
-    )
+    if not ignore_trans:
+        trans_counts.reset_index(inplace=True)
+        trans_counts['np_bp2'] = (
+            (trans_counts['end1'] - trans_counts['start1'])
+            * (trans_counts['end2'] - trans_counts['start2'])
+        )
     
-        
-    return sc,trans_counts
+    return sc, trans_counts
 
 
 def norm_scaling(bins, cfreqs, anchor=1.0, binwindow=(0,3)):
