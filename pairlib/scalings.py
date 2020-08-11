@@ -272,11 +272,11 @@ def compute_scaling(
     if isinstance(pairs, pd.DataFrame):
         pairs_df = pairs
             
-    elif isinstance(pairs, str) or hasattr(pairs, 'buffer'):
+    elif isinstance(pairs, str) or hasattr(pairs, 'buffer') or hasattr(pairs, 'peek'):
         import pairtools
 
-        pairs_stream = (pairs if hasattr(pairs, 'buffer') 
-                        else pairtools._fileio.auto_open(pairs, 'r'))
+        pairs_stream = (pairtools._fileio.auto_open(pairs, 'r')
+                        if isinstance(pairs, str) else pairs)
         
         header, pairs_body = pairtools._headerops.get_header(pairs_stream)
 
@@ -297,7 +297,7 @@ def compute_scaling(
 
 
     sc, trans_counts = None, None
-    for pairs_chunk in ([pairs_df] if chunksize is None else pairs_df): 
+    for pairs_chunk in ([pairs_df] if isinstance(pairs_df, pd.DataFrame) else pairs_df): 
         sc_chunk, trans_counts_chunk = bins_pairs_by_distance(
             pairs_chunk, 
             dist_bins,
