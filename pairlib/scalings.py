@@ -334,9 +334,13 @@ def compute_scaling(
     return sc, trans_counts
 
 
-def norm_scaling(bins, cfreqs, anchor=1.0, binwindow=(0,3)):
+def norm_scaling_factor(bins, cfreqs, anchor=1.0, binwindow=(0,3)):
     i = np.searchsorted(bins, anchor)
-    return cfreqs/(cfreqs[i+binwindow[0]:i+binwindow[1]]).mean()
+    return cfreqs[i+binwindow[0]:i+binwindow[1]].mean()
+
+
+def norm_scaling(bins, cfreqs, anchor=1.0, binwindow=(0,3)):
+    return cfreqs / norm_scaling_factor(bins, cfreqs, anchor, binwindow)
 
 
 def unity_norm_scaling(bins, cfreqs, norm_range=(1e4, 1e9)):
