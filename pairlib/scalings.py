@@ -290,7 +290,8 @@ def compute_scaling(
             names=cols,
             #nrows=1e6,
             chunksize=chunksize,
-            sep='\t'
+            sep='\t',
+            dtype={'chrom1':str, 'chrom2':str}
         )
     else:
         raise ValueError('pairs must be either a path to a pairs file or a pd.DataFrame')
