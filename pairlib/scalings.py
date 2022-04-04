@@ -264,7 +264,8 @@ def compute_scaling(
     dist_range=(int(1e1), int(1e9)), 
     n_dist_bins=8*8,
     chunksize=int(1e7),
-    ignore_trans=False
+    ignore_trans=False,
+    filter_f = None
     ):
 
     dist_bins = geomspace(dist_range[0],dist_range[1],n_dist_bins)
@@ -299,6 +300,8 @@ def compute_scaling(
 
     sc, trans_counts = None, None
     for pairs_chunk in ([pairs_df] if isinstance(pairs_df, pd.DataFrame) else pairs_df): 
+        if filter_f:
+            pairs_chunk = filter_f(pairs_chunk)
         sc_chunk, trans_counts_chunk = bins_pairs_by_distance(
             pairs_chunk, 
             dist_bins,
